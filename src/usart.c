@@ -1,10 +1,10 @@
 /* Includes ------------------------------------------------------------------*/
 #include "usart.h"
-#include <stdio.h>
-#include <string.h>
 #include "ring_buffer.h"
 #include "stm32f4xx_hal.h"
 #include "stm32f4xx_hal_rcc.h"
+#include <stdio.h>
+#include <string.h>
 
 
 /* Private definitions -------------------------------------------------------*/
@@ -47,60 +47,106 @@ static char RingBufferData_Rx[1024];
 UART_HandleTypeDef UartHandle;
 
 
+bool USART_PutChar(char c)
+{
+	bool success = false;
 
-bool USART_PutChar(char c){
-	//TODO
-	return false;
+	CORE_EnterCriticalSection();
+
+	success = RingBuffer_PutChar(&USART_RingBuffer_Tx, c);
+
+	CORE_ExitCriticalSection();
+
+	if(success)
+	{
+		__USART_ENABLE_IT(&UartHandle, USART_IT_TXE);
+	}
+
+	return success;
 }
 
 
-size_t USART_WriteData(const void *data, size_t dataSize){
+size_t USART_WriteData(const void *data, size_t dataSize)
+{
 	size_t i = 0;
+	for(; i< dataSize && USART_PutChar(*(((char *)data) + i)); ++i);
 
-	// TODO
 	return i;
 }
 
 
-size_t USART_WriteString(const char *string){
-	//TODO
-	return false;
+size_t USART_WriteString(const char *string)
+{
+	return USART_WriteData(string, strlen(string));
 }
 
 
-bool USART_GetChar(char *c){
-	//TODO
-	return false;
+bool USART_GetChar(char *c)
+{
+	bool success = false;
+
+	CORE_EnterCriticalSection();
+
+	success = RingBuffer_GetChar(&USART_RingBuffer_Rx, c);
+
+	CORE_ExitCriticalSection();
+
+	return success;
 }
 
 
-size_t USART_ReadData(char *data, size_t maxSize){
-	return 0;
+size_t USART_ReadData(char *data, size_t maxSize)
+{
+	size_t i = 0;
+
+	for(; i < maxSize && USART_GetChar(data + i); ++i);
+
+	return i;
 }
 
-bool USART_SetCallback_OnNewLine(int TODO){
+bool USART_SetCallback_OnNewLine(int TODO)
+{
 	//TODO
 	return false;
 }
 
 // USART Interrupt Service Routine (ISR)
-void USARTx_IRQHandler(void){
-
-	if (__HAL_USART_GET_FLAG(&UartHandle, USART_FLAG_RXNE)) {
+void USARTx_IRQHandler(void)
+{
+	if (__HAL_USART_GET_FLAG(&UartHandle, USART_FLAG_RXNE))
+	{
 		// the RXNE interrupt has occurred
-		if (__HAL_USART_GET_IT_SOURCE(&UartHandle, USART_IT_RXNE)) {
+		if (__HAL_USART_GET_IT_SOURCE(&UartHandle, USART_IT_RXNE))
+		{
 			// the RXNE interrupt is enabled
-			// TODO: read the received character and place it in the receive ring buffer
+
+			//receive character
+			char c = USARTx->DR;
+			RingBuffer_PutChar(&USART_RingBuffer_Rx, c);
 		}
 	}
 
-	if (__HAL_USART_GET_FLAG(&UartHandle, USART_FLAG_TXE)) {
+	if (__HAL_USART_GET_FLAG(&UartHandle, USART_FLAG_TXE))
+	{
 	  // the TXE interrupt has occurred
-    if (__HAL_USART_GET_IT_SOURCE(&UartHandle, USART_IT_TXE)) {
-	    // the TXE interrupt is enabled
-			// TODO: get a character from the transmit ring buffer and send it via UART
-	  }
-  }
+		if (__HAL_USART_GET_IT_SOURCE(&UartHandle, USART_IT_TXE))
+		{
+			// the TXE interrupt is enabled
+
+			//send character
+			char c;
+
+			if(RingBuffer_GetChar(&USART_RingBuffer_Tx, &c))
+			{
+				USARTx->DR = c;
+			}
+			else
+			{
+				//if failed disable interrupt
+				__USART_DISABLE_IT(&UartHandle, USART_IT_TXE);
+			}
+		}
+	}
 }
 
 
@@ -170,7 +216,8 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef *huart)
 /**
   * This function initialize ring buffers, USART device and enable receive interrupt.
   */
-bool USART_Init(void){
+bool USART_Init(void)
+{
 	// initialize ring buffers
 	RingBuffer_Init(&USART_RingBuffer_Tx, RingBufferData_Tx, sizeof(RingBufferData_Tx));
 	RingBuffer_Init(&USART_RingBuffer_Rx, RingBufferData_Rx, sizeof(RingBufferData_Rx));
