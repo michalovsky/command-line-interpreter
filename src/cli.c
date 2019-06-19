@@ -46,32 +46,128 @@ static bool CLI_StoreCommand(void);
 static void CLI_StringToLower(char *dst, const char *src);
 
 
+void CLI_Proc(void)
+{
+	if(CLI_StoreCommand() && strlen(commandBuffer))
+	{
+		char * args = strchr(commandBuffer, ' ');
+		if(args!=NULL)
+		{
+			*args = '\0';
+			args++;
+		}
+		CLI_CommandItem * item = CLI_GetMenuItemByCommandName(commandBuffer);
+		if(item)
+		{
+			USART_WriteString(commandBuffer);
+			item->callback(args);
+			USART_WriteString("\n\r");
+		}
+		else if(strcasecmp(commandBuffer,"?") == 0)
+		{
+			USART_WriteString(commandBuffer);
+			CLI_PrintAllCommands();
+		}
+		else if(strcasecmp(commandBuffer,"\n") == 0)
+		{
+			USART_WriteString(commandBuffer);
+		}
+		else
+		{
+			USART_WriteString(commandBuffer);
+			USART_WriteString(": command unknown. Use '?' to get a list of known commands.\n\r");
+		}
 
-void CLI_Proc(void){
-	//todo
+		memset(commandBuffer,0, sizeof(commandBuffer));
+	}
+
 }
 
-bool CLI_AddCommand(CLI_CommandItem *item){
-	//todo
+bool CLI_AddCommand(CLI_CommandItem *item)
+{
+	if(item->callback && strlen(item->commandName))
+	{
+		item->next = head;
+		head = item;
+		return true;
+	}
 	return false;
 }
 
-void CLI_PrintAllCommands(void){
-	//todo
+void CLI_PrintAllCommands(void)
+{
+	CLI_CommandItem * item = head;
+
+	while(item)
+	{
+		USART_WriteString(item->commandName);
+		USART_WriteString(": ");
+		if(item->description)
+		{
+			USART_WriteString(item->description);
+		}
+		else
+		{
+			USART_WriteString("(no description)");
+		}
+		USART_WriteString("\n\r");
+		item = item->next;
+	}
 }
 
-CLI_CommandItem* CLI_GetMenuItemByCommandName(char *command){
-	//todo
+CLI_CommandItem* CLI_GetMenuItemByCommandName(char *command)
+{
+	CLI_CommandItem * item = head;
 
-	return NULL;
+	while(item && strcasecmp(item->commandName, command))
+	{
+		item = item->next;
+	}
+
+	return item;
 };
 
-void CLI_StringToLower(char *dst, const char *src){
-	//todo proszÄ wykorzystaÄ funkcje z biblioteki ctype.h
+void CLI_StringToLower(char *dst, const char *src)
+{
+	while(src)
+	{
+		*(dst++) = tolower(*(src++));
+	}
 }
 
-bool CLI_StoreCommand(){
-	//todo
+bool CLI_StoreCommand()
+{
+	char c;
 
+	if(USART_GetChar(&c))
+	{
+		USART_PutChar(c);
+		if(c == '\n' || c == '\r') //new line
+		{
+			if(strlen(commandBuffer) == 0)
+			{
+				strncat(commandBuffer, "\n", 1);
+			}
+			return true;
+		}
+		else if(c == 127) //deleting
+		{
+			for(int i=0; i<sizeof(commandBuffer); ++i)
+			{
+				if(commandBuffer[i] == '\0') // find last character in buffer
+				{
+					if(i > 0)
+					{
+						commandBuffer[i-1] = '\0';
+					}
+					break;
+				}
+			}
+		}
+		else
+		{
+			strncat(commandBuffer, &c, 1);
+		}
+	}
 	return false;
 }
