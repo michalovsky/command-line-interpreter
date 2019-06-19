@@ -10,7 +10,8 @@ typedef void(*CLICallbackFunc)(char *args);
 
 
 /// CLI command descriptor
-typedef struct CLI_CommandItem {
+typedef struct CLI_CommandItem
+{
 	/// pointer to a callback function
 	CLICallbackFunc callback;
 	/// pointer to comand name (string)

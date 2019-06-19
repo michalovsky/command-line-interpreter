@@ -10,36 +10,93 @@
 
 #include "stm32f4xx.h"
 #include "stm32f429i_discovery.h"
-#include <string.h>
 #include "usart.h"
 #include "usart_unit_test.h"
+#include "cli.h"
+#include <string.h>
+
+
+void LED_Init(void)
+{
+  __GPIOG_CLK_ENABLE();
+
+  // Configure GPIO pin PG13
+  GPIO_InitTypeDef GPIO_InitStruct;
+  GPIO_InitStruct.Pin   = GPIO_PIN_13;
+  GPIO_InitStruct.Mode  = GPIO_MODE_OUTPUT_PP;        // push-pull output
+  GPIO_InitStruct.Pull  = GPIO_NOPULL;                // no pull resistor
+  GPIO_InitStruct.Speed = GPIO_SPEED_LOW;             // analog pin bandwidth limited
+  HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
+  GPIO_InitStruct.Pin   = GPIO_PIN_14;
+  HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
+
+} /* LED_Init */
+
+void commandLED(char *args)
+{
+    if(strcmp(args, "on") == 0)
+    {
+        HAL_GPIO_WritePin(GPIOG, GPIO_PIN_13, GPIO_PIN_SET);
+    }
+    else if(strcmp(args, "off") == 0)
+    {
+        HAL_GPIO_WritePin(GPIOG, GPIO_PIN_13, GPIO_PIN_RESET);
+    }
+    else
+    {
+        USART_WriteString("Unrecognized argument. Available arguments are \"on\" and \"off\"\n\r");
+    }
+}
+
+void commandLED2(char *args)
+{
+    if(strcmp(args, "on") == 0)
+    {
+        HAL_GPIO_WritePin(GPIOG, GPIO_PIN_14, GPIO_PIN_SET);
+    }
+    else if(strcmp(args, "off") == 0)
+    {
+        HAL_GPIO_WritePin(GPIOG, GPIO_PIN_14, GPIO_PIN_RESET);
+    }
+    else
+    {
+        USART_WriteString("Unrecognized argument. Available arguments are \"on\" and \"off\"\n\r");
+    }
+}
+
+
 
 int main(void)
 {
 
- HAL_Init();
- USART_Init();
+	HAL_Init();
+	USART_Init();
+	LED_Init();
 
- GPIO_InitTypeDef gpio;
-  gpio.Pin = GPIO_PIN_13;
-  gpio.Mode = GPIO_MODE_OUTPUT_PP;
-  gpio.Pull = GPIO_NOPULL;
-  gpio.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOG, &gpio);
 
- //USART_WriteString("Hello world \n\r");
- char c;
+ CLI_CommandItem item_LED = { .callback = commandLED,
+                           .commandName = "LED",
+                           .description = NULL};
 
- USART_UnitTest();
+ CLI_CommandItem item_LED2 = { .callback = commandLED2,
+                           .commandName = "LED2",
+                           .description = NULL};
 
- while (1)
+ if(CLI_AddCommand(&item_LED) == false)
  {
-	 if(USART_GetChar(&c))
-	 {
-	     USART_PutChar(c);
-	 }
+     USART_WriteString("ERROR in adding LED.\n\r");
+ }
 
-	 //char * s = "asdasda\n\r";
-	 //HAL_UART_Transmit(&UartHandle, (uint8_t*)s, strlen(s), 10);
+ if(CLI_AddCommand(&item_LED2) == false)
+ {
+     USART_WriteString("ERROR in adding LED2.\n\r");
+ }
+
+ CLI_PrintAllCommands();
+
+ while (true)
+ {
+	 CLI_Proc();
+	 HAL_Delay(10);
  }
 }
